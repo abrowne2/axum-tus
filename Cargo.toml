@@ -1,0 +1,18 @@
+[package]
+name = "axum-tus"
+version = "0.1.0"
+edition = "2021"
+authors = ["Adam Browne <adamo.browne@gmail.com>"]
+description = "A tus library crate for axum"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tower = "0.4.13"
+axum = "0.6.18"
+http = "0.2.9"
+tokio = "1.28.2"
+bytes = "1.4.0"
+futures = "0.3.28"
+async-trait = "0.1.68"
+tower-http = "0.4.1"
