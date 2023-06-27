@@ -2,7 +2,6 @@ use futures::Future;
 use http::{Request, StatusCode, HeaderValue, Response};
 use axum::body::Body;
 use crate::FileStore;
-use crate::TusError;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -11,7 +10,6 @@ use crate::AxumTusHeaders;
 
 pub struct TusLayer<T: FileStore + Send + Sync + 'static> {
     file_store: Arc<T>,
-    headers: Vec<AxumTusHeaders>,
 }
 
 impl<S, T> Layer<S> for TusLayer<T>
@@ -56,16 +54,18 @@ where
     fn call(&mut self, request: http::Request<Body>) -> Self::Future {
         
 
-        let headers = self.headers.clone();
+        let headers = request.headers().clone();
+        let tus_headers = AxumTusHeaders::from_headers(&headers);
         let fut = self.service.call(request);
 
         Box::pin(async move {
             let mut response = fut.await?;
 
-            // Modify the response headers
-            for header in &headers {
-                header.apply(response.headers_mut());
-            }
+            // We may want to modify the response headers here so that we can adjust for the protocol
+
+            // for header in &headers {
+            //     header.apply(response.headers_mut());
+            // }
 
             Ok(response)
         })

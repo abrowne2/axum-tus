@@ -1,8 +1,8 @@
-mod file_store;
+mod filesystem;
 mod tus_service;
 // mod errors;
 
-pub use file_store::FileStore;
+pub use filesystem::file_store::FileStore;
 // pub use tus_service::Tus;
 // pub use errors::TusError;
 
