@@ -35,8 +35,10 @@ pub enum FileStoreError {
     Error
 }
 
+// NOTE: You can include an Arc<State> for additional logic at the time of the construction of the filestore.
 pub struct LocalFileStore {
-    root_path: String
+    root_path: String,
+    // state: Arc<State>
 }
 
 impl LocalFileStore {
