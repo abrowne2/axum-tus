@@ -1,7 +1,7 @@
 use futures::Future;
 use http::{Request, StatusCode, HeaderValue, Response};
 use axum::body::Body;
-use crate::FileStore;
+use crate::{FileStore, TusHeaderMap};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -26,14 +26,12 @@ where
         TusService {
             service,
             file_store: Arc::clone(&self.file_store),
-            version: "1.0.0"
         }
     }
 }
 
 pub struct TusService<S, T: FileStore> {
     service: S,
-    version: &'static str,
     file_store: Arc<T>,
 }
 
@@ -51,21 +49,19 @@ where
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, request: http::Request<Body>) -> Self::Future {
+    fn call(&mut self, mut request: http::Request<Body>) -> Self::Future {
         
-
-        let headers = request.headers().clone();
-        let tus_headers = AxumTusHeaders::from_headers(&headers);
+        // make filestore usable inside request handlers.
+        request.extensions_mut().insert(Arc::clone(&self.file_store));
+        
         let fut = self.service.call(request);
 
         Box::pin(async move {
             let mut response = fut.await?;
 
-            // We may want to modify the response headers here so that we can adjust for the protocol
+            let tus_header_map = TusHeaderMap::with_tus_version();
 
-            // for header in &headers {
-            //     header.apply(response.headers_mut());
-            // }
+            tus_header_map.apply(response.headers_mut());
 
             Ok(response)
         })

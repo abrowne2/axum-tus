@@ -20,6 +20,7 @@ pub enum AxumTusHeaders {
     Version,
     Resumable,
     UploadLength,
+    UploadOffset,
     UploadMetadata
 }
 
@@ -31,34 +32,31 @@ impl AxumTusHeaders {
             Self::Version => "Tus-Version",
             Self::Resumable => "Tus-Resumable",
             Self::UploadLength => "Upload-Length",
+            Self::UploadOffset => "Upload-Offset",
             Self::UploadMetadata => "Upload-Metadata"
         }
     }
 }
 
+#[derive(Debug, Default)]
 pub struct TusHeaderMap {
     max_size: Option<u64>,
     extensions: Option<Vec<String>>,
     version: Option<Vec<String>>,
     resumable: Option<String>,
     upload_length: Option<u64>,
-    upload_metadata: Option<String>
-}
-
-impl Default for TusHeaderMap {
-    fn default() -> Self {
-        Self {
-            max_size: None,
-            extensions: None,
-            version: None,
-            resumable: None,
-            upload_length: None,
-            upload_metadata: None
-        }
-    }
+    upload_metadata: Option<String>,
+    upload_offset: Option<u64>
 }
 
 impl TusHeaderMap {    
+    pub fn with_tus_version() -> Self {
+        Self {
+            resumable: Some("1.0.0".to_string()),
+            ..Default::default()
+        }
+    }
+
     pub fn from_headers(headers: &HeaderMap) -> Result<TusHeaderMap, Box<dyn std::error::Error>> {
         let mut tus_header_map = TusHeaderMap::default();
 
@@ -91,6 +89,11 @@ impl TusHeaderMap {
         if let Some(upload_length) = headers.get(AxumTusHeaders::UploadLength.name()) {
             let upload_length = u64::from_str(upload_length.to_str()?)?;
             tus_header_map.upload_length = Some(upload_length);
+        }
+
+        if let Some(upload_offset) = headers.get(AxumTusHeaders::UploadOffset.name()) {
+            let upload_offset = u64::from_str(upload_offset.to_str()?)?;
+            tus_header_map.upload_offset = Some(upload_offset);
         }
 
         if let Some(upload_metadata) = headers.get(AxumTusHeaders::UploadMetadata.name()) {
@@ -126,6 +129,10 @@ impl TusHeaderMap {
 
         if let Some(upload_metadata) = &self.upload_metadata {
             headers.insert(AxumTusHeaders::UploadMetadata.name(), HeaderValue::from_str(&upload_metadata).unwrap());
+        }
+
+        if let Some(upload_offset) = &self.upload_offset {
+            headers.insert(AxumTusHeaders::UploadOffset.name(), HeaderValue::from_str(&upload_offset.to_string()).unwrap());
         }
     }
 }

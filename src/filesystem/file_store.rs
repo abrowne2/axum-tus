@@ -17,13 +17,13 @@ pub enum PatchOption {
     Completed(FileInfo<Completed>),
 }
 
-// todo do we need build_file? it may do the setup by pulling the metadata from the file itself (this includes the tus protocol stuff)
 #[async_trait]
 pub trait FileStore: Send + Sync {
+    async fn build_file(&self, length: u64, metadata: Option<&str>) -> Result<FileInfo<Built>, FileStoreError>;
     async fn create_file(&self, file_info: FileInfo<Built>) -> Result<FileInfo<Created>, FileStoreError>;
     async fn patch_file(&self, file_id: &str, offset: u64, data: &mut [u8]) -> Result<PatchOption, FileStoreError>;   
     async fn delete_file(&self, file_id: &str) -> Result<(), FileStoreError>;
-    async fn get_file_info(&self, file_id: &str) -> Result<(u64, Option<String>), FileStoreError>; // return file length and file type
+    async fn get_file_info(&self, file_id: &str) -> Result<FileInfo<Created>, FileStoreError>; // return file length and file type
     async fn exists(&self, file_id: &str) -> bool;
 }
 
@@ -66,8 +66,35 @@ impl LocalFileStore {
     }
 }
 
+///
+/// This LocalFileStore implementation is for testing purposes only.
+/// It is not recommended to use this in production.
+/// It's used for testing the tus protocol and the tus server, and uses the filesystem locally.
+/// 
 #[async_trait]
 impl FileStore for LocalFileStore {
+    async fn build_file(
+        &self,
+        length: u64,
+        metadata: Option<&str>,
+    ) -> Result<FileInfo<Built>, FileStoreError> {
+        let metadata = match metadata {
+            Some(metadata) => match Metadata::try_from(metadata) {
+                Ok(m) => m,
+                Err(e) => return Err(FileStoreError::CreationError(Box::new(e))),
+            },
+            None => Metadata::default()
+        };
+
+        // note can also use with_raw_id(), which we may use for a custom filestore.
+        let file_info = FileInfo::new(length)
+            .with_uuid()
+            .with_metadata(metadata)
+            .build();
+        
+        Ok(file_info)
+    }
+
     async fn exists(
         &self,
         file_id: &str,
@@ -175,15 +202,22 @@ impl FileStore for LocalFileStore {
     async fn get_file_info(
         &self,
         file_id: &str
-    ) -> Result<(u64, Option<String>), FileStoreError> {
+    ) -> Result<FileInfo<Created>, FileStoreError> {
         let file_path = format!("{}/{}", self.root_path, file_id);
         println!("When getting file info, file_path: {}", file_path);
 
-        let file = std::fs::File::open(file_path).map_err(|e| FileStoreError::ReadError(Box::new(e)))?;
+        let file_dir = Path::new(&file_path).join(file_id);
 
-        let metadata = file.metadata().map_err(|e| FileStoreError::ReadError(Box::new(e)))?;
+        let info_path = file_dir.join("info").with_extension("json");
 
+        let file = match File::open(info_path) {
+            Ok(file) => file,
+            Err(e) => return Err(FileStoreError::ReadError(e.into())),
+        };
 
-        Ok((metadata.len(), None))
+        let reader = BufReader::new(file);
+
+        serde_json::from_reader(reader)
+            .map_err(|e| FileStoreError::ReadError(e.into()))    
     }
 }
