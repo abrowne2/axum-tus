@@ -1,4 +1,7 @@
 pub mod creation;
+pub mod upload_handler;
+pub mod file_info_handler;
+pub mod info;
 
 use serde::{Deserialize, Serialize};
 

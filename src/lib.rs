@@ -1,11 +1,8 @@
 mod filesystem;
 mod tus_service;
 mod request_handlers;
-// mod errors;
 
 pub use filesystem::file_store::FileStore;
-// pub use tus_service::Tus;
-// pub use errors::TusError;
 
 // TUS Headers for its protocol
 use http::header::HeaderMap;
@@ -22,6 +19,23 @@ pub enum AxumTusHeaders {
     UploadLength,
     UploadOffset,
     UploadMetadata
+}
+
+pub enum TusExtensions {
+    Creation,
+    Concatenation, //TODO implement concatenation extension (non-contiguous and parallel uploads.)
+    Termination,
+    CreationWithUpload,
+    Checksum,
+}
+
+impl TusExtensions {
+    pub fn name(&self) -> String {
+        match self {
+            Self::Creation => "creation".to_string(),
+            _ => todo!("Not yet implemented"),
+        }
+    }
 }
 
 impl AxumTusHeaders {
@@ -50,59 +64,68 @@ pub struct TusHeaderMap {
 }
 
 impl TusHeaderMap {    
+    // TODO for now, defaults to 1.0.0 for resumable / version support.
     pub fn with_tus_version() -> Self {
         Self {
             resumable: Some("1.0.0".to_string()),
+            version: Some(vec!["1.0.0".to_string()]),
+            extensions: Some(vec![TusExtensions::Creation.name()]), 
+            max_size: Some(300_000_000_000), //TODO Have configurable max size (300 gb default)
             ..Default::default()
         }
     }
 
-    pub fn from_headers(headers: &HeaderMap) -> Result<TusHeaderMap, Box<dyn std::error::Error>> {
+    pub fn from_headers(headers: &HeaderMap) -> TusHeaderMap {
         let mut tus_header_map = TusHeaderMap::default();
-
+    
         if let Some(maxsize) = headers.get(AxumTusHeaders::MaxSize.name()) {
-            let maxsize = u64::from_str(maxsize.to_str()?)?;
+            let maxsize = u64::from_str(maxsize.to_str().unwrap_or("0")).unwrap_or_default();
             tus_header_map.max_size = Some(maxsize);
         }
-
+    
         if let Some(extensions) = headers.get(AxumTusHeaders::Extensions.name()) {
-            let extensions = extensions.to_str()?
+            let extensions = extensions
+                .to_str()
+                .unwrap_or("")
                 .split(',')
                 .map(String::from)
                 .collect();
             tus_header_map.extensions = Some(extensions);
         }
-
+    
         if let Some(version) = headers.get(AxumTusHeaders::Version.name()) {
-            let version = version.to_str()?
+            let version = version
+                .to_str()
+                .unwrap_or("")
                 .split(',')
                 .map(String::from)
                 .collect();
             tus_header_map.version = Some(version);
         }
-
+    
         if let Some(resumable) = headers.get(AxumTusHeaders::Resumable.name()) {
-            let resumable = resumable.to_str()?.to_string();
+            let resumable = resumable.to_str().unwrap_or("").to_string();
             tus_header_map.resumable = Some(resumable);
         }
-
+    
         if let Some(upload_length) = headers.get(AxumTusHeaders::UploadLength.name()) {
-            let upload_length = u64::from_str(upload_length.to_str()?)?;
+            let upload_length = u64::from_str(upload_length.to_str().unwrap_or("0")).unwrap_or_default();
             tus_header_map.upload_length = Some(upload_length);
         }
-
+    
         if let Some(upload_offset) = headers.get(AxumTusHeaders::UploadOffset.name()) {
-            let upload_offset = u64::from_str(upload_offset.to_str()?)?;
+            let upload_offset = u64::from_str(upload_offset.to_str().unwrap_or("0")).unwrap_or_default();
             tus_header_map.upload_offset = Some(upload_offset);
         }
-
+    
         if let Some(upload_metadata) = headers.get(AxumTusHeaders::UploadMetadata.name()) {
-            let upload_metadata = upload_metadata.to_str()?.to_string();
+            let upload_metadata = upload_metadata.to_str().unwrap_or("").to_string();
             tus_header_map.upload_metadata = Some(upload_metadata);
         }
-
-        Ok(tus_header_map)
+    
+        tus_header_map
     }
+    
 
     pub fn apply(&self, headers: &mut HeaderMap) {
         if let Some(max_size) = &self.max_size {

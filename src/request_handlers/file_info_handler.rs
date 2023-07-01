@@ -12,13 +12,13 @@ async fn file_info_handler(
     Path(id): Path<String>,
     Extension(file_store): Extension<Arc<dyn FileStore + Send + Sync>>,
     claims: Arc<dyn super::AuthClaims>,
-) -> impl IntoResponse {
+) -> impl axum::response::IntoResponse {
     match file_store.get_file_info(&id).await {
         Ok(file) => {
             let mut response = http::Response::builder()
                 .status(StatusCode::NO_CONTENT)
-                .header(AxumTusHeaders::UploadLength.name(), file.length())
-                .header(AxumTusHeaders::UploadOffset.name(), file.metadata())
+                .header(crate::AxumTusHeaders::UploadLength.name(), file.length())
+                .header(crate::AxumTusHeaders::UploadOffset.name(), file.metadata())
                 .body(Body::empty())
                 .unwrap();
             

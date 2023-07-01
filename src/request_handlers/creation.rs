@@ -48,42 +48,35 @@ where
 
     async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {        
         let headers = req.headers();
-
-        match TusHeaderMap::from_headers(&headers) {
-            Ok(header_map) => {
-                let tus_resumable_header = match header_map.resumable {
-                    Some(resumable) => resumable,
-                    None => {
-                        return Err(StatusCode::from_u16(400).unwrap());
-                    }
-                };
-                
-                let upload_length = match header_map.upload_length {
-                    Some(upload_length) => upload_length,
-                    None => {
-                        return Err(StatusCode::from_u16(400).unwrap());
-                    }
-                };
-
-                // TODO add max_size value for AXUM-TUS
-                let metadata = match header_map.upload_metadata {
-                    None => None,
-                    Some(metadata) if metadata.is_empty() => None,
-                    Some(metadata) => Some(metadata)
-                };
-
-                let creation_values = CreationRequest {
-                    upload_length,
-                    metadata
-                };
-
-                Ok(creation_values)
-            },
-            Err(e) => {
-                println!("Error parsing headers: {:?}", e);
-                Err(StatusCode::from_u16(400).unwrap())
+        
+        let header_map = TusHeaderMap::from_headers(&headers);
+        let tus_resumable_header = match header_map.resumable {
+            Some(resumable) => resumable,
+            None => {
+                return Err(StatusCode::from_u16(400).unwrap());
             }
-        }
+        };
+        
+        let upload_length = match header_map.upload_length {
+            Some(upload_length) => upload_length,
+            None => {
+                return Err(StatusCode::from_u16(400).unwrap());
+            }
+        };
+
+        // TODO add max_size value for AXUM-TUS
+        let metadata = match header_map.upload_metadata {
+            None => None,
+            Some(metadata) if metadata.is_empty() => None,
+            Some(metadata) => Some(metadata)
+        };
+
+        let creation_values = CreationRequest {
+            upload_length,
+            metadata
+        };
+
+        Ok(creation_values)
     }
 }
 
