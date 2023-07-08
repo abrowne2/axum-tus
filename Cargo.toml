@@ -11,7 +11,7 @@ description = "A tus library crate for axum"
 tower = "0.4.13"
 axum = "0.6.18"
 http = "0.2.9"
-tokio = "1.28.2"
+tokio = { version = "1.28.2", features = ["full"] }
 bytes = "1.4.0"
 futures = "0.3.28"
 async-trait = "0.1.68"

@@ -221,3 +221,19 @@ impl FileStore for LocalFileStore {
             .map_err(|e| FileStoreError::ReadError(e.into()))    
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_local_build_file() {
+        let local_file_store = LocalFileStore::new("/Users/adambrowne/projects/axum-tus/src/root_test_path".to_string());
+
+        // 10 megabytes upload length
+        let upload_length: u64 = 10485760;
+        let metadata_file_string = base64::engine::general_purpose::STANDARD.encode("test_local_file.mov");        
+
+        local_file_store.build_file
+    }
+}

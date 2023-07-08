@@ -4,10 +4,27 @@ mod request_handlers;
 
 pub use filesystem::file_store::FileStore;
 
+use request_handlers::creation::*;
+use request_handlers::file_info_handler::*;
+use request_handlers::upload_handler::*;
+use request_handlers::info::*;
+
 // TUS Headers for its protocol
 use http::header::HeaderMap;
 use http::header::HeaderValue;
 use std::str::FromStr;
+use axum::routing::*;
+
+pub fn setup_tus_routes(router: &mut axum::Router, file_store: FileStore) -> axum::Router {
+    router
+        .route("/", post(creation_handler).options(info_handler))
+        .route("/:id", head(file_info_handler).patch(upload_handler))
+        .layer(TusLayer {
+            file_store
+        });
+
+    router
+}
 
 // TUS Headers for its protocol
 #[derive(Debug)]
@@ -157,5 +174,22 @@ impl TusHeaderMap {
         if let Some(upload_offset) = &self.upload_offset {
             headers.insert(AxumTusHeaders::UploadOffset.name(), HeaderValue::from_str(&upload_offset.to_string()).unwrap());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_setup_routes() {
+        // if running tests, make sure that your root path resolves to the local src directory.
+        let local_file_store = filesystem::file_store::LocalFileStore::new("/Users/adambrowne/projects/axum-tus/src/root_test_path".to_string());
+
+        let local_file_store = Arc::new(local_file_store);
+
+        let mut axum_router = axum::Router::new();
+
+        axum_router = setup_tus_routes(axum_router, local_file_store);
     }
 }
