@@ -120,7 +120,8 @@ impl FileStore for LocalFileStore {
         }
 
         let file_name = file_dir.join("file");
-
+        // NOTE this creates a new file; for our bucket filestore we will just create a new file in the bucket.
+        // and then name the info.json (it should just be inside)
         if let Err(e) = match File::options()
             .read(true)
             .write(true)
@@ -230,10 +231,17 @@ mod tests {
     async fn test_local_build_file() {
         let local_file_store = LocalFileStore::new("/Users/adambrowne/projects/axum-tus/src/root_test_path".to_string());
 
-        // 10 megabytes upload length
-        let upload_length: u64 = 10485760;
+        // 16 megabytes upload length
+        let upload_length: u64 = 16361047;
         let metadata_file_string = base64::engine::general_purpose::STANDARD.encode("test_local_file.mov");        
+        let metadata_string = format!("filename {},", metadata_file_string);
 
-        local_file_store.build_file
+        let built_metadata = local_file_store.build_file(upload_length, Some(&metadata_string)).await;
+
+        assert!(built_metadata.is_ok());
+
+        let file_info = file_store.create_file(file_info).await;
+        
+        //   todo assert that the file directories exist and the file exists.
     }
 }
