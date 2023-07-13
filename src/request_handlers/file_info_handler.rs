@@ -8,25 +8,24 @@ use hyper::{Body, Request, Uri, HeaderMap};
 use std::{io::Cursor, sync::Arc};
 use crate::filesystem::file_store::*;
 
-async fn file_info_handler(
+pub async fn file_info_handler(
     Path(id): Path<String>,
     Extension(file_store): Extension<Arc<dyn FileStore + Send + Sync>>,
     claims: Arc<dyn super::AuthClaims>,
-) -> impl axum::response::IntoResponse {
+) -> Result<Response<Body>, StatusCode> {
     match file_store.get_file_info(&id).await {
         Ok(file) => {
-            let mut response = http::Response::builder()
+            let response = http::Response::builder()
                 .status(StatusCode::NO_CONTENT)
-                .header(crate::AxumTusHeaders::UploadLength.name(), file.length())
-                .header(crate::AxumTusHeaders::UploadOffset.name(), file.metadata())
+                .header(crate::AxumTusHeaders::UploadLength.name(), file.length_str())
+                .header(crate::AxumTusHeaders::UploadOffset.name(), file.metadata_str())
+                .header(axum::http::header::CACHE_CONTROL, "no-store")
                 .body(Body::empty())
                 .unwrap();
             
-            response
+            Ok(response)
         },
-        Err(_) => StatusCode::NOT_FOUND.into_response()
+        Err(_) => Err(StatusCode::NOT_FOUND) 
     }     
-
-    Ok(response)
 }
 

@@ -119,7 +119,8 @@ impl FileStore for LocalFileStore {
             fs::create_dir_all(file_dir).map_err(|e| FileStoreError::CreationError(Box::new(e)))?;
         }
 
-        let file_name = file_dir.join("file");
+        // NOTE do we have the filename from the metadata here?
+        let file_name = file_dir.join(file_info.name());
         // NOTE this creates a new file; for our bucket filestore we will just create a new file in the bucket.
         // and then name the info.json (it should just be inside)
         if let Err(e) = match File::options()
@@ -223,25 +224,120 @@ impl FileStore for LocalFileStore {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
+    use base64::Engine;
+
     use super::*;
 
-    #[tokio::test]
-    async fn test_local_build_file() {
-        let local_file_store = LocalFileStore::new("/Users/adambrowne/projects/axum-tus/src/root_test_path".to_string());
+    #[derive(Clone, Copy, Debug)]
+    enum FileStoreTestState {
+        Built,
+        Created,
+        Patched,
+        Completed,
+        Terminated,
+    }
+
+    // creating separate test dirs because the tests are run in parallel...
+    impl FileStoreTestState {
+        pub fn name(&self) -> &str {
+            match self {
+                Self::Built => "_built",
+                Self::Created => "_created",
+                Self::Patched => "_patched",
+                Self::Completed => "_completed",
+                Self::Terminated => "_terminated",
+            }
+        }
+    }
+
+    fn cleanup_test_directory(test_state: FileStoreTestState) {
+        // todo must be configurable or detected.
+        let root_path = format!("/Users/adambrowne/projects/axum-tus/src/root_test_path{}", test_state.name());
+        let info_path = format!("{}/{}", root_path, "test_local_file.info.json");
+
+        let _ = std::fs::remove_file(info_path);
+        let _ = std::fs::remove_dir_all(root_path);
+    }
+
+    async fn build_and_create_test_file(test_state: FileStoreTestState) -> Result<FileInfo<Created>, FileStoreError> {
+        let root_path = format!("/Users/adambrowne/projects/axum-tus/src/root_test_path{}", test_state.name());
+        let local_file_store = LocalFileStore::new(root_path);
 
         // 16 megabytes upload length
         let upload_length: u64 = 16361047;
         let metadata_file_string = base64::engine::general_purpose::STANDARD.encode("test_local_file.mov");        
         let metadata_string = format!("filename {},", metadata_file_string);
 
-        let built_metadata = local_file_store.build_file(upload_length, Some(&metadata_string)).await;
+        let file_info_built = local_file_store.build_file(upload_length, Some(&metadata_string)).await;
 
-        assert!(built_metadata.is_ok());
+        assert!(file_info_built.is_ok());
 
-        let file_info = file_store.create_file(file_info).await;
-        
-        //   todo assert that the file directories exist and the file exists.
+        // ensure metadata was properly parsed.
+        if let Ok(file_info) = file_info_built {
+            assert_eq!(file_info.length(), &upload_length);
+            
+            let metadata = file_info.metadata();
+            match metadata {
+                Some(metadata) => {
+                    match metadata.get_raw("filename") {
+                        Ok(raw) => {
+                            let filename = String::from_utf8(raw).unwrap();
+                            assert_eq!(filename, "test_local_file.mov");
+                        },
+                        Err(e) => {
+                            println!("Error: {:?}", e);
+                            panic!();
+                        }
+                    }
+                },
+                None => {
+                    panic!();
+                }
+            }
+            local_file_store.create_file(file_info).await
+        } else {
+            Err(FileStoreError::Error)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_local_build_file() {
+        cleanup_test_directory(FileStoreTestState::Built);
+
+        let _ = build_and_create_test_file(FileStoreTestState::Built).await;
+    }
+
+    #[tokio::test]
+    async fn test_patching_file_bytes() {
+        let test_state = FileStoreTestState::Patched;
+        cleanup_test_directory(test_state);
+
+        let file_info = build_and_create_test_file(test_state.clone()).await;
+
+        let root_path = format!("/Users/adambrowne/projects/axum-tus/src/root_test_path{}", test_state.clone().name());
+        let local_file_store = LocalFileStore::new(root_path);
+
+        //  NOTE: in this test we should, in chunks, patch accordingly with the offset in mind. Upload_slice should be an array of bytes
+        // let final_offset: Result<u64, FileStoreError> = match local_file_store.patch_file(&id, req.upload_offset, upload_slice).await {
+        //     Ok(result) => {
+        //         let final_offset = match result {
+        //             PatchOption::Patched(offset) => offset,
+        //             PatchOption::Completed(file_info) => {
+        //                 // check auto terminate logic here.
+    
+        //                 *file_info.length()
+        //             }
+        //         };
+    
+        //         Ok(final_offset)
+        //     },
+        //     Err(e) => {
+        //         println!("Error patching file: {:?}", e);
+        //         Err(FileStoreError::Error)
+        //     }
+        // };
     }
 }

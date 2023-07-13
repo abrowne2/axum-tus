@@ -54,6 +54,24 @@ impl<State> FileInfo<State> {
     pub fn metadata(&self) -> &Option<Metadata> {
         &self.metadata
     }
+
+    pub fn name(&self) -> &String {
+        &self.file_name
+    }
+
+    // for use with the Upload-Metadata header
+    pub fn metadata_str(&self) -> String {
+        if let Some(metadata) = &self.metadata {
+            serde_json::to_string(metadata).unwrap()
+        } else {
+            String::default()
+        }
+    }
+
+    // for use for applying the header.
+    pub fn length_str(&self) -> String {
+        self.length.to_string()
+    }
 }
 
 impl FileInfo<Building> {
@@ -75,6 +93,11 @@ impl FileInfo<Building> {
 
     pub(super) fn with_metadata(mut self, metadata: Metadata) -> Self {
         self.metadata = Some(metadata);
+        // Attempt to get the filename from the passed in metadata.
+        if let Some(file_name) = self.metadata.as_ref().unwrap().try_file_name() {
+            self.file_name = file_name;
+        }
+        
         self
     }
 

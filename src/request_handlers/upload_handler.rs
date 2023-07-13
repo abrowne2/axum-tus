@@ -14,7 +14,7 @@ pub struct UploadRequest {
     upload_bytes: bytes::Bytes
 }
 
-async fn upload_handler(
+pub async fn upload_handler(
     req: UploadRequest,
     Path(id): Path<String>,
     Extension(file_store): Extension<Arc<dyn FileStore + Send + Sync>>,

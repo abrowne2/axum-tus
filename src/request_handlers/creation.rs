@@ -13,7 +13,7 @@ pub struct CreationRequest {
     metadata: Option<String>,
 }
 
-async fn creation_handler(
+pub async fn creation_handler(
     req: CreationRequest,
     Extension(file_store): Extension<Arc<dyn FileStore + Send + Sync>>,
     claims: Arc<dyn super::AuthClaims>,

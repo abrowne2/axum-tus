@@ -39,6 +39,16 @@ impl Metadata {
         }
     }
 
+    pub fn try_file_name(&self) -> Option<String> {
+        match self.get_raw("filename") {
+            Ok(v) => {
+                let file_name = String::from_utf8_lossy(&v);
+                Some(file_name.to_string())
+            },
+            Err(_) => None,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.0.len()
     }
