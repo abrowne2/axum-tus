@@ -15,16 +15,21 @@ use http::header::HeaderValue;
 use std::str::FromStr;
 use axum::routing::*;
 
-// pub fn setup_tus_routes(router: &mut axum::Router, file_store: dyn FileStore) -> axum::Router {
-//     router
-//         .route("/", post(creation_handler).options(info_handler))
-//         .route("/:id", head(file_info_handler).patch(upload_handler))
-//         .layer(tus_service::TusLayer {
-//             file_store: std::sync::Arc::new(file_store)
-//         });
+pub fn setup_tus_routes<T>(router: axum::Router, file_store: T) -> axum::Router
+where
+    T: FileStore + Send + Sync + 'static,
+{
+    let tus_layer = tus_service::TusLayer::<T> {
+        file_store: std::sync::Arc::new(file_store)
+    };
 
-//     router
-// }
+    let new_router = router
+        .route("/", post(creation_handler::<T>).options(info_handler))
+        .route("/:id", head(file_info_handler::<T>).patch(upload_handler::<T>))
+        .layer(tus_layer);
+
+    new_router
+}
 
 // TUS Headers for its protocol
 #[derive(Debug)]

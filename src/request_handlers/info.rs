@@ -1,7 +1,7 @@
 use axum::{
     http::{StatusCode},
+    body::Body
 };
-use hyper::{Body};
 
 pub async fn info_handler() -> impl axum::response::IntoResponse {
     // NOTE the Tus headers are applied at the tus service level (see src/tus_service.rs)

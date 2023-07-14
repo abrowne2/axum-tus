@@ -1,20 +1,23 @@
-use futures::Future;
+use futures::{Future, future::BoxFuture};
 use http::{Request, StatusCode, HeaderValue, Response};
 use axum::body::Body;
 use crate::{FileStore, TusHeaderMap};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tower::{Layer, Service, ServiceBuilder, service_fn, MakeService, ServiceExt};
+use tower::{Layer, Service};
 use crate::AxumTusHeaders;
 
+pub type BoxBody = http_body::combinators::UnsyncBoxBody<bytes::Bytes, axum::Error>;
+
+#[derive(Clone)]
 pub struct TusLayer<T: FileStore + Send + Sync + 'static> {
-    file_store: Arc<T>,
+    pub file_store: Arc<T>,
 }
 
 impl<S, T> Layer<S> for TusLayer<T>
 where
-    S: Service<http::Request<Body>> + Clone + Send + 'static,
+    S: Service<http::Request<axum::body::Body>> + Clone + Send + 'static,
     T: FileStore + Send + Sync + 'static,
     S::Response: Send + 'static,
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -30,26 +33,27 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct TusService<S, T: FileStore> {
     service: S,
     file_store: Arc<T>,
 }
 
-impl<S, T> Service<Request<Body>> for TusService<S, T>
+impl<S, T> Service<Request<axum::body::Body>> for TusService<S, T>
 where
-    S: Service<Request<Body>, Response = Response<Body>> + Send + 'static,
+    S: Service<Request<axum::body::Body>, Response = Response<BoxBody>> + Send + 'static,
     T: FileStore + Send + Sync + 'static,
     S::Future: Send + 'static,
 {
-    type Response = S::Response;
+    type Response = Response<BoxBody>;
     type Error = S::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, mut request: http::Request<Body>) -> Self::Future {
+    fn call(&mut self, mut request: http::Request<axum::body::Body>) -> Self::Future {
         
         // make filestore usable inside request handlers.
         request.extensions_mut().insert(Arc::clone(&self.file_store));

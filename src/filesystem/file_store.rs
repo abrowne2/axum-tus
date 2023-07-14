@@ -18,7 +18,7 @@ pub enum PatchOption {
 }
 
 #[async_trait]
-pub trait FileStore: Send + Sync {
+pub trait FileStore: Send + Sync + Clone {
     async fn build_file(&self, length: u64, metadata: Option<&str>) -> Result<FileInfo<Built>, FileStoreError>;
     async fn create_file(&self, file_info: FileInfo<Built>) -> Result<FileInfo<Created>, FileStoreError>;
     async fn patch_file(&self, file_id: &str, offset: u64, data: &mut [u8]) -> Result<PatchOption, FileStoreError>;   
@@ -36,6 +36,7 @@ pub enum FileStoreError {
 }
 
 // NOTE: You can include an Arc<State> for additional logic at the time of the construction of the filestore.
+#[derive(Clone)]
 pub struct LocalFileStore {
     root_path: String,
     // state: Arc<State>
