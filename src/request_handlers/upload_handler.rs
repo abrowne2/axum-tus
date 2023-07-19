@@ -11,7 +11,6 @@ use crate::filesystem::file_store::*;
 
 pub struct UploadRequest<T> {
     upload_offset: u64,
-    file_id: String,
     upload_bytes: bytes::Bytes,
     file_store: Arc<T>
 }
@@ -25,7 +24,6 @@ where
     T: FileStore + Send + Sync + 'static
 {    
     let file_store = req.file_store;
-    let id = req.file_id;
     let mut bytes_vector = req.upload_bytes.to_vec();
     let upload_slice: &mut [u8] = bytes_vector.as_mut_slice();
 
@@ -55,7 +53,7 @@ where
 
     let response = Response::builder()
         .status(StatusCode::NO_CONTENT)
-        .header(crate::AxumTusHeaders::UploadOffset.name(), req.upload_offset.to_string())
+        .header(crate::AxumTusHeaders::UploadOffset.name(), final_offset.unwrap().to_string())
         .body(Body::empty())
         .unwrap();
 
@@ -103,17 +101,6 @@ where
             }
         }
 
-        let uri = parts.uri;
-        let path = uri.path().to_string();
-
-        let path_parts: Vec<&str> = path.split("/:").collect();
-        let file_id = match path_parts.get(1) {
-            Some(file_id) => *file_id,
-            None => {
-                return Err(StatusCode::from_u16(400).unwrap());
-            }
-        };
-
         let bytes_body = match hyper::body::to_bytes(body).await {
             Ok(bytes) => {
 
@@ -131,7 +118,6 @@ where
 
         let upload_values = UploadRequest::<T> {
             upload_offset,
-            file_id: file_id.to_string(),
             upload_bytes: bytes_body,
             file_store
         };
