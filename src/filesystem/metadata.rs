@@ -40,10 +40,14 @@ impl Metadata {
     }
 
     pub fn try_file_name(&self) -> Option<String> {
-        match self.get_raw("filename") {
+        self.try_get_key("filename")
+    }
+
+    pub fn try_get_key(&self, key: &str) -> Option<String> {
+        match self.get_raw(key) {
             Ok(v) => {
-                let file_name = String::from_utf8_lossy(&v);
-                Some(file_name.to_string())
+                let value = String::from_utf8_lossy(&v);
+                Some(value.to_string())
             },
             Err(_) => None,
         }

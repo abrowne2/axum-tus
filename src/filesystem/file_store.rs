@@ -53,16 +53,18 @@ impl LocalFileStore {
         &self,
         file_id: &str,
     ) -> Result<FileInfo<State>, FileStoreError> {
-        let file_path = format!("{}/{}", self.root_path, file_id);
-        println!("When reading file, file_path: {}", file_path);
+        let file_dir = std::path::Path::new(self.root_path.as_str()).join(file_id);
 
-        let file = std::fs::File::open(file_path).map_err(|e| FileStoreError::ReadError(Box::new(e)))?;
+        let info_path = file_dir.join("info").with_extension("json");
 
-        let metadata = file.metadata().map_err(|e| FileStoreError::ReadError(Box::new(e)))?;
-        
+        let file = match File::open(info_path) {
+            Ok(file) => file,
+            Err(e) => return Err(FileStoreError::ReadError(Box::new(e))),
+        };
+
         let reader = BufReader::new(file);
 
-        serde_json::from_reader(reader)
+        serde_json::from_reader(reader)   
             .map_err(|e| FileStoreError::ReadError(Box::new(e)))
     }
 }
@@ -71,6 +73,7 @@ impl LocalFileStore {
 /// This LocalFileStore implementation is for testing purposes only.
 /// It is not recommended to use this in production.
 /// It's used for testing the tus protocol and the tus server, and uses the filesystem locally.
+/// You should spin up your own.
 /// 
 #[async_trait]
 impl FileStore for LocalFileStore {
@@ -168,8 +171,18 @@ impl FileStore for LocalFileStore {
         offset: u64,
         data: &mut [u8],
     ) -> Result<PatchOption, FileStoreError> {
+        let mut file = self.read_file(file_id)?;
+
+        if *file.offset() != offset {
+            return Err(FileStoreError::ReadError(Box::new(
+                std::io::Error::from(ErrorKind::InvalidInput),
+            )));
+        }
+
         let file_path = format!("{}/{}", self.root_path, file_id);
         println!("When patching file, file_path: {}", file_path);
+
+        let file_dir = Path::new(&self.root_path).join(file_id);
 
         let mut file = std::fs::OpenOptions::new()
             .read(true)
@@ -183,7 +196,12 @@ impl FileStore for LocalFileStore {
         file.write_all(data)
             .map_err(|e| FileStoreError::ReadError(Box::new(e)))?;
 
-        let metadata = file.metadata().map_err(|e| FileStoreError::ReadError(Box::new(e)))?;
+        let file_info_path = file_dir.join("info").with_extension("json");
+
+        let mut file_info = File::options().write(true).open(file_info_path).unwrap();
+
+        serde_json::to_writer(&mut file_info, &file).unwrap();
+
 
         // also, remember to check for the last part so if it's the last one, we can start the merge process
 
@@ -206,22 +224,7 @@ impl FileStore for LocalFileStore {
         &self,
         file_id: &str
     ) -> Result<FileInfo<Created>, FileStoreError> {
-        let file_path = format!("{}/{}", self.root_path, file_id);
-        println!("When getting file info, file_path: {}", file_path);
-
-        let file_dir = Path::new(&file_path).join(file_id);
-
-        let info_path = file_dir.join("info").with_extension("json");
-
-        let file = match File::open(info_path) {
-            Ok(file) => file,
-            Err(e) => return Err(FileStoreError::ReadError(e.into())),
-        };
-
-        let reader = BufReader::new(file);
-
-        serde_json::from_reader(reader)
-            .map_err(|e| FileStoreError::ReadError(e.into()))    
+        self.read_file(file_id)
     }
 }
 
@@ -304,6 +307,31 @@ mod tests {
         }
     }
 
+    async fn patch_byte_offset_of_file(file_store: &LocalFileStore, file_info: &FileInfo<Created>, offset: u64, data: &mut [u8]) -> Result<u64, FileStoreError> {
+        let file_id = file_info.id();
+
+        let final_offset: Result<u64, FileStoreError> = match local_file_store.patch_file(&file_id, offset, data).await {
+            Ok(result) => {
+                let final_offset = match result {
+                    PatchOption::Patched(offset) => offset,
+                    PatchOption::Completed(file_info) => {
+                        // check auto terminate logic here.
+    
+                        *file_info.length()
+                    }
+                };
+    
+                Ok(final_offset)
+            },
+            Err(e) => {
+                println!("Error patching file: {:?}", e);
+                Err(FileStoreError::Error)
+            }
+        };
+
+        final_offset
+    }
+
     #[tokio::test]
     async fn test_local_build_file() {
         cleanup_test_directory(FileStoreTestState::Built);
@@ -321,24 +349,16 @@ mod tests {
         let root_path = format!("/Users/adambrowne/projects/axum-tus/src/root_test_path{}", test_state.clone().name());
         let local_file_store = LocalFileStore::new(root_path);
 
+        // for the purpose of this test, we will split the bytes in two.
+
+        let all_file_data = std::fs::read("/Users/adambrowne/projects/axum-tus/src/filesystem/test_local_file.mov").unwrap();
+        let midpoint = all_file_data.len() / 2;
+
+        let mut first_half_bytes = all_file_data[..midpoint].to_vec();
+        let mut second_half_bytes = all_file_data[midpoint..].to_vec();
+
+
         //  NOTE: in this test we should, in chunks, patch accordingly with the offset in mind. Upload_slice should be an array of bytes
-        // let final_offset: Result<u64, FileStoreError> = match local_file_store.patch_file(&id, req.upload_offset, upload_slice).await {
-        //     Ok(result) => {
-        //         let final_offset = match result {
-        //             PatchOption::Patched(offset) => offset,
-        //             PatchOption::Completed(file_info) => {
-        //                 // check auto terminate logic here.
-    
-        //                 *file_info.length()
-        //             }
-        //         };
-    
-        //         Ok(final_offset)
-        //     },
-        //     Err(e) => {
-        //         println!("Error patching file: {:?}", e);
-        //         Err(FileStoreError::Error)
-        //     }
-        // };
+
     }
 }
