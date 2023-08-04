@@ -171,7 +171,7 @@ impl FileStore for LocalFileStore {
         offset: u64,
         data: &mut [u8],
     ) -> Result<PatchOption, FileStoreError> {
-        let mut file = self.read_file(file_id)?;
+        let mut file: FileInfo<Created>  = self.read_file(file_id)?;
 
         if *file.offset() != offset {
             return Err(FileStoreError::ReadError(Box::new(
@@ -344,21 +344,23 @@ mod tests {
         let test_state = FileStoreTestState::Patched;
         cleanup_test_directory(test_state);
 
-        let file_info = build_and_create_test_file(test_state.clone()).await;
+        let file_info = build_and_create_test_file(test_state.clone()).await.unwrap();
 
         let root_path = format!("/Users/adambrowne/projects/axum-tus/src/root_test_path{}", test_state.clone().name());
         let local_file_store = LocalFileStore::new(root_path);
 
-        // for the purpose of this test, we will split the bytes in two.
-
+        // For this test we're just splitting the file in two.
         let all_file_data = std::fs::read("/Users/adambrowne/projects/axum-tus/src/filesystem/test_local_file.mov").unwrap();
         let midpoint = all_file_data.len() / 2;
 
         let mut first_half_bytes = all_file_data[..midpoint].to_vec();
         let mut second_half_bytes = all_file_data[midpoint..].to_vec();
 
+        let first_offset = patch_byte_offset_of_file(&local_file_store, &file_info, 0, &mut first_half_bytes).await.unwrap();
+        
+        let second_offset = patch_byte_offset_of_file(&local_file_store, &file_info, first_offset, &mut second_half_bytes).await.unwrap();
 
-        //  NOTE: in this test we should, in chunks, patch accordingly with the offset in mind. Upload_slice should be an array of bytes
-
+        // proper upload length. should be completed here.
+        assert_eq!(second_offset, 16361047);
     }
 }
