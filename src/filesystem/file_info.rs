@@ -46,7 +46,7 @@ impl<State> FileInfo<State> {
     pub fn id(&self) -> &str {
         &self.id
     }
-
+    
     pub fn length(&self) -> &u64 {
         &self.length
     }
