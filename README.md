@@ -30,3 +30,8 @@ pub fn setup_tus_routes<T>(router: axum::Router, file_store: T) -> axum::Router
 - Also, there is a `LocalFileStore` which is included, but as an example for local filesystem saves. It is not tested for production use and ideally you should extend the `FileStore` trait to add support for Google Cloud Storage, and Amazon S3, etc.
 
 
+## TODOs
+
+- Need to have example in main.rs for using axum-TUS with `LocalFileStore`.
+- Need uppy/TUS clientside integration (just local filesystem) to verify
+- Need GCP example and integration 
