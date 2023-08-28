@@ -310,7 +310,7 @@ mod tests {
     async fn patch_byte_offset_of_file(file_store: &LocalFileStore, file_info: &FileInfo<Created>, offset: u64, data: &mut [u8]) -> Result<u64, FileStoreError> {
         let file_id = file_info.id();
 
-        let final_offset: Result<u64, FileStoreError> = match local_file_store.patch_file(&file_id, offset, data).await {
+        let final_offset: Result<u64, FileStoreError> = match file_store.patch_file(&file_id, offset, data).await {
             Ok(result) => {
                 let final_offset = match result {
                     PatchOption::Patched(offset) => offset,
@@ -341,7 +341,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_patching_file_bytes() {
+        
         let test_state = FileStoreTestState::Patched;
+        
         cleanup_test_directory(test_state);
 
         let file_info = build_and_create_test_file(test_state.clone()).await.unwrap();
