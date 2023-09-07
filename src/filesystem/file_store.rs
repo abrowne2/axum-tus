@@ -202,9 +202,9 @@ impl FileStore for LocalFileStore {
 
         serde_json::to_writer(&mut file_info, &file).unwrap();
 
-
         // also, remember to check for the last part so if it's the last one, we can start the merge process
         // How to check for the file's metdata here?
+
         Ok(PatchOption::Patched(metadata.len()))
     }
 
